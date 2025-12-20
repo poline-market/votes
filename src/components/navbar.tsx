@@ -9,10 +9,12 @@ import { Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const navItems = [
-    { href: '/', label: 'DASHBOARD' },
-    { href: '/events', label: 'MARKETS' },
-    { href: '/proposals', label: 'GOVERNANCE' },
-    { href: '/circles', label: 'CIRCLES' },
+    { label: 'Dashboard', href: '/' },
+    { label: 'Buy POLINE', href: '/buy' },
+    { label: 'Staking', href: '/staking' },
+    { label: 'Circles', href: '/circles' },
+    { label: 'Markets', href: '/events' },
+    { label: 'Governance', href: '/proposals' },
 ]
 
 export function Navbar() {

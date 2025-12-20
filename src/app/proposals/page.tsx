@@ -1,40 +1,57 @@
 'use client'
 
 import { useReadContract } from 'wagmi'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CONTRACTS, polineDAOABI } from '@/lib/contracts'
 import Link from 'next/link'
-import { Plus, FileText } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { readContract } from '@wagmi/core'
+import { config } from '@/lib/wagmi-config'
+import { formatEther } from 'viem'
+
+// Helper Enums
+const PROPOSAL_TYPES = ['Governance', 'Protocol', 'Membership']
+const PROPOSAL_STATUS = ['Pending', 'Active', 'Canceled', 'Defeated', 'Succeeded', 'Queued', 'Expired', 'Executed']
 
 // Componente "Proposal Row" - Tabular style
 function ProposalRow({ id, title, type, status, forVotes, againstVotes }: any) {
+    const total = Number(formatEther(forVotes + againstVotes))
+    const forVal = Number(formatEther(forVotes))
+    // const againstVal = Number(formatEther(againstVotes))
+    const forPercent = total > 0 ? (forVal / total) * 100 : 0
+
+    // Status color logic (simplified)
+    const isActive = status === 1;
+
     return (
         <Link href={`/proposals/${id}`} className="block group">
-            <div className="grid grid-cols-12 gap-4 items-center p-4 border-b border-border hover:bg-muted/30 transition-colors">
+            <div className="grid grid-cols-12 gap-4 items-center px-4 py-4 border-b border-border hover:bg-muted/30 transition-colors">
                 <div className="col-span-12 md:col-span-6 flex gap-3 items-center">
-                    <span className="font-mono text-muted-foreground text-xs">#{id}</span>
-                    <h3 className="font-medium group-hover:text-primary transition-colors truncate">
+                    <span className="font-mono text-muted-foreground text-xs">#{id.substring(0, 6)}...</span>
+                    <h3 className="font-medium group-hover:text-primary transition-colors truncate text-sm">
                         {title}
                     </h3>
                 </div>
 
                 <div className="col-span-6 md:col-span-2">
-                    <Badge variant="outline" className="rounded-sm font-mono text-[10px] uppercase font-normal">
-                        {type}
+                    <Badge variant="outline" className="rounded-sm font-mono text-[10px] uppercase font-normal text-muted-foreground">
+                        {PROPOSAL_TYPES[type] || 'Unknown'}
                     </Badge>
                 </div>
 
                 <div className="col-span-6 md:col-span-2 text-right md:text-left">
-                    <span className="label-tech text-[10px]">{status}</span>
+                    <span className={`label-tech text-[10px] ${isActive ? 'text-emerald-500' : ''}`}>
+                        {PROPOSAL_STATUS[status] || 'UNKNOWN'}
+                    </span>
                 </div>
 
                 <div className="col-span-12 md:col-span-2 flex items-center gap-2 justify-end">
-                    <div className="flex-1 h-1.5 bg-secondary rounded-sm max-w-[100px] flex justify-end">
-                        <div style={{ width: '60%' }} className="bg-primary h-full" />
+                    <div className="flex-1 h-1.5 bg-secondary rounded-sm max-w-[100px] flex justify-end overflow-hidden">
+                        <div style={{ width: `${forPercent}%` }} className="bg-primary h-full" />
                     </div>
-                    <span className="font-mono text-xs">60% FOR</span>
+                    <span className="font-mono text-xs w-12 text-right">{forPercent.toFixed(0)}%</span>
                 </div>
             </div>
         </Link>
@@ -42,15 +59,75 @@ function ProposalRow({ id, title, type, status, forVotes, againstVotes }: any) {
 }
 
 export default function ProposalsPage() {
+    const [proposals, setProposals] = useState<any[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+
     const { data: proposalCount } = useReadContract({
         address: CONTRACTS.polineDAO as `0x${string}`,
         abi: polineDAOABI,
         functionName: 'proposalCount',
     })
 
+    useEffect(() => {
+        async function fetchProposals() {
+            if (!proposalCount || Number(proposalCount) === 0) {
+                setIsLoading(false)
+                return
+            }
+
+            try {
+                const count = Number(proposalCount)
+                const promises = []
+
+                // Fetch newest first
+                for (let i = count - 1; i >= 0; i--) {
+                    promises.push((async () => {
+                        const id = await readContract(config, {
+                            address: CONTRACTS.polineDAO as `0x${string}`,
+                            abi: polineDAOABI,
+                            functionName: 'proposalIds',
+                            args: [BigInt(i)],
+                        })
+                        const data: any = await readContract(config, {
+                            address: CONTRACTS.polineDAO as `0x${string}`,
+                            abi: polineDAOABI,
+                            functionName: 'getProposal',
+                            args: [id],
+                        })
+                        return {
+                            id: data[0],
+                            proposer: data[1],
+                            circleId: data[2],
+                            proposalType: data[3],
+                            description: data[4],
+                            callData: data[5],
+                            target: data[6],
+                            createdAt: data[7],
+                            deadline: data[8],
+                            forVotes: data[9],
+                            againstVotes: data[10],
+                            abstainVotes: data[11],
+                            status: data[12],
+                            eta: data[13]
+                        }
+                    })())
+                }
+
+                const results = await Promise.all(promises)
+                setProposals(results)
+            } catch (error) {
+                console.error('Error fetching proposals:', error)
+            } finally {
+                setIsLoading(false)
+            }
+        }
+
+        fetchProposals()
+    }, [proposalCount])
+
     return (
         <div className="space-y-8">
-            <div className="flex justify-between items-end border-b border-border pb-4">
+            <div className="flex justify-between items-end border-b border-border pb-6">
                 <div>
                     <h1 className="text-3xl font-medium tracking-tighter">Governance</h1>
                     <p className="text-muted-foreground text-sm mt-1 max-w-xl">
@@ -75,22 +152,21 @@ export default function ProposalsPage() {
                 </div>
 
                 {/* Rows */}
-                <ProposalRow
-                    id="104"
-                    title="Implement Staking V2 parameters for Oracle Circle"
-                    type="Protocol"
-                    status="VOTING PERIOD"
-                />
-                <ProposalRow
-                    id="103"
-                    title="Add new dispute resolution moderator"
-                    type="Governance"
-                    status="EXECUTED"
-                />
+                {proposals.map((prop: any) => (
+                    <ProposalRow
+                        key={prop.id}
+                        id={prop.id}
+                        title={prop.description}
+                        type={prop.proposalType}
+                        status={prop.status}
+                        forVotes={prop.forVotes}
+                        againstVotes={prop.againstVotes}
+                    />
+                ))}
 
-                {(!proposalCount || Number(proposalCount) === 0) && (
-                    <div className="p-12 text-center text-muted-foreground font-mono text-sm">
-                        NO PROPOSALS FOUND
+                {(!isLoading && proposals.length === 0) && (
+                    <div className="p-16 text-center text-muted-foreground font-mono text-xs uppercase tracking-widest">
+                        No Proposals Found
                     </div>
                 )}
             </div>
