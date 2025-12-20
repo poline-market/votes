@@ -1,65 +1,180 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import { useAccount, useReadContract } from 'wagmi'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import Link from 'next/link'
+import { CONTRACTS, stakingManagerABI, polineTokenABI } from '@/lib/contracts'
+import { formatEther } from 'viem'
+
+export default function Dashboard() {
+  const { address, isConnected } = useAccount()
+
+  const { data: totalStaked } = useReadContract({
+    address: CONTRACTS.stakingManager as `0x${string}`,
+    abi: stakingManagerABI,
+    functionName: 'totalStaked',
+  })
+
+  const { data: isOracle } = useReadContract({
+    address: CONTRACTS.stakingManager as `0x${string}`,
+    abi: stakingManagerABI,
+    functionName: 'isOracle',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  })
+
+  const { data: userStake } = useReadContract({
+    address: CONTRACTS.stakingManager as `0x${string}`,
+    abi: stakingManagerABI,
+    functionName: 'getStake',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  })
+
+  const { data: minimumStake } = useReadContract({
+    address: CONTRACTS.stakingManager as `0x${string}`,
+    abi: stakingManagerABI,
+    functionName: 'minimumStake',
+  })
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-4xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-muted-foreground mt-2">
+          Sistema de decisão coletiva com skin in the game
+        </p>
+      </div>
+
+      {!isConnected ? (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <p className="text-muted-foreground">
+                Conecte sua carteira MetaMask para interagir com a DAO
+              </p>
+              <Badge variant="outline">Polygon Amoy Testnet</Badge>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Status do usuário */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Badge variant={isOracle ? 'default' : 'secondary'}>
+                  {isOracle ? 'Oráculo Ativo' : 'Não é Oráculo'}
+                </Badge>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Seu Stake</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {userStake ? Number(formatEther(userStake)).toFixed(2) : '0'} POLINE
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Stakado</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {totalStaked ? Number(formatEther(totalStaked)).toFixed(2) : '0'} POLINE
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Mínimo Oracle</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {minimumStake ? Number(formatEther(minimumStake)).toFixed(0) : '100'} POLINE
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Ações rápidas */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <CardTitle>Oráculo Humano</CardTitle>
+                <CardDescription>
+                  Stake tokens para votar na resolução de eventos
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Faça stake para se tornar oráculo e ganhar poder de voto. Se votar errado, sofre slashing.
+                </p>
+                <div className="flex gap-2">
+                  <Button asChild>
+                    <Link href="/staking">Fazer Stake</Link>
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <Link href="/events">Ver Eventos</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Governança</CardTitle>
+                <CardDescription>
+                  Participe das decisões da DAO
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Membros de círculos podem criar propostas. Vote em propostas ativas.
+                </p>
+                <div className="flex gap-2">
+                  <Button asChild>
+                    <Link href="/proposals">Ver Propostas</Link>
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <Link href="/circles">Círculos</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Disputas</CardTitle>
+                <CardDescription>
+                  Sistema de court estilo Kleros
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Desafie decisões erradas com stake extra. Nova rodada de votação decide.
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="outline" asChild>
+                    <Link href="/disputes">Ver Disputas</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
-  );
+  )
 }
