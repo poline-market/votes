@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Poline DAO",
-  description: "Sistema de decisão coletiva com skin in the game",
+  description: "Protocolo de Decisão Coletiva",
 };
 
 export default function RootLayout({
@@ -26,13 +26,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className="dark">
+    <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background text-foreground`}
       >
         <Providers>
           <Navbar />
-          <main className="container py-8">{children}</main>
+          <main className="container py-6 max-w-7xl mx-auto px-4 md:px-6">
+            {children}
+          </main>
           <Toaster />
         </Providers>
       </body>

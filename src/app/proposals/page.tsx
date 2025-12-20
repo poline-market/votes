@@ -1,30 +1,44 @@
 'use client'
 
 import { useReadContract } from 'wagmi'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CONTRACTS, polineDAOABI } from '@/lib/contracts'
 import Link from 'next/link'
+import { Plus, FileText } from 'lucide-react'
 
-const statusLabels: Record<number, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-    0: { label: 'Pendente', variant: 'secondary' },
-    1: { label: 'Votação Ativa', variant: 'default' },
-    2: { label: 'Cancelada', variant: 'destructive' },
-    3: { label: 'Derrotada', variant: 'destructive' },
-    4: { label: 'Aprovada', variant: 'outline' },
-    5: { label: 'Em Fila', variant: 'outline' },
-    6: { label: 'Executada', variant: 'default' },
-    7: { label: 'Expirada', variant: 'secondary' },
-}
+// Componente "Proposal Row" - Tabular style
+function ProposalRow({ id, title, type, status, forVotes, againstVotes }: any) {
+    return (
+        <Link href={`/proposals/${id}`} className="block group">
+            <div className="grid grid-cols-12 gap-4 items-center p-4 border-b border-border hover:bg-muted/30 transition-colors">
+                <div className="col-span-12 md:col-span-6 flex gap-3 items-center">
+                    <span className="font-mono text-muted-foreground text-xs">#{id}</span>
+                    <h3 className="font-medium group-hover:text-primary transition-colors truncate">
+                        {title}
+                    </h3>
+                </div>
 
-const proposalTypes: Record<number, string> = {
-    0: 'Geral',
-    1: 'Oracle',
-    2: 'Governança',
-    3: 'Protocol Rules',
-    4: 'Disputa',
-    5: 'Comunidade',
+                <div className="col-span-6 md:col-span-2">
+                    <Badge variant="outline" className="rounded-sm font-mono text-[10px] uppercase font-normal">
+                        {type}
+                    </Badge>
+                </div>
+
+                <div className="col-span-6 md:col-span-2 text-right md:text-left">
+                    <span className="label-tech text-[10px]">{status}</span>
+                </div>
+
+                <div className="col-span-12 md:col-span-2 flex items-center gap-2 justify-end">
+                    <div className="flex-1 h-1.5 bg-secondary rounded-sm max-w-[100px] flex justify-end">
+                        <div style={{ width: '60%' }} className="bg-primary h-full" />
+                    </div>
+                    <span className="font-mono text-xs">60% FOR</span>
+                </div>
+            </div>
+        </Link>
+    )
 }
 
 export default function ProposalsPage() {
@@ -36,92 +50,49 @@ export default function ProposalsPage() {
 
     return (
         <div className="space-y-8">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-end border-b border-border pb-4">
                 <div>
-                    <h1 className="text-4xl font-bold">Propostas</h1>
-                    <p className="text-muted-foreground mt-2">
-                        Propostas de governança da DAO. Membros de círculos podem criar propostas.
+                    <h1 className="text-3xl font-medium tracking-tighter">Governance</h1>
+                    <p className="text-muted-foreground text-sm mt-1 max-w-xl">
+                        Protocol updates and circle elections.
                     </p>
                 </div>
-                <Button asChild>
-                    <Link href="/proposals/new">Criar Proposta</Link>
+                <Button asChild variant="outline" className="border-primary/20 hover:bg-primary/5 rounded-sm h-9">
+                    <Link href="/proposals/new" className="gap-2">
+                        <Plus className="w-4 h-4" />
+                        <span className="label-tech text-primary">NEW PROPOSAL</span>
+                    </Link>
                 </Button>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Total de Propostas</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="text-4xl font-bold">
-                        {proposalCount?.toString() || '0'}
+            <div className="border border-border bg-card">
+                {/* Table Header */}
+                <div className="grid grid-cols-12 gap-4 px-4 py-3 border-b border-border bg-muted/20 text-[10px] font-mono text-muted-foreground uppercase tracking-wider hidden md:grid items-center">
+                    <div className="col-span-6 pl-2">Proposal</div>
+                    <div className="col-span-2">Type</div>
+                    <div className="col-span-2">Status</div>
+                    <div className="col-span-2 text-right pr-2">Vote Consensus</div>
+                </div>
+
+                {/* Rows */}
+                <ProposalRow
+                    id="104"
+                    title="Implement Staking V2 parameters for Oracle Circle"
+                    type="Protocol"
+                    status="VOTING PERIOD"
+                />
+                <ProposalRow
+                    id="103"
+                    title="Add new dispute resolution moderator"
+                    type="Governance"
+                    status="EXECUTED"
+                />
+
+                {(!proposalCount || Number(proposalCount) === 0) && (
+                    <div className="p-12 text-center text-muted-foreground font-mono text-sm">
+                        NO PROPOSALS FOUND
                     </div>
-                </CardContent>
-            </Card>
-
-            <div className="grid gap-4">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Tipos de Proposta (Holacracia)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            {Object.entries(proposalTypes).map(([key, label]) => (
-                                <div key={key} className="flex items-center gap-2">
-                                    <Badge variant="outline">{label}</Badge>
-                                    <span className="text-sm text-muted-foreground">
-                                        Tipo {key}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Como Funciona</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid gap-4 md:grid-cols-4">
-                            <div className="space-y-2">
-                                <Badge>1. Criar</Badge>
-                                <p className="text-sm text-muted-foreground">
-                                    Membro de círculo cria proposta
-                                </p>
-                            </div>
-                            <div className="space-y-2">
-                                <Badge>2. Votar</Badge>
-                                <p className="text-sm text-muted-foreground">
-                                    Token holders votam FOR/AGAINST
-                                </p>
-                            </div>
-                            <div className="space-y-2">
-                                <Badge>3. Fila</Badge>
-                                <p className="text-sm text-muted-foreground">
-                                    Se aprovada, entra em timelock
-                                </p>
-                            </div>
-                            <div className="space-y-2">
-                                <Badge>4. Executar</Badge>
-                                <p className="text-sm text-muted-foreground">
-                                    Após timelock, pode ser executada
-                                </p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Lista de propostas seria carregada aqui */}
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="text-center text-muted-foreground">
-                            {proposalCount && Number(proposalCount) > 0
-                                ? 'Carregando propostas...'
-                                : 'Nenhuma proposta criada ainda.'}
-                        </p>
-                    </CardContent>
-                </Card>
+                )}
             </div>
         </div>
     )
