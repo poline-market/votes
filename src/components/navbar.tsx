@@ -14,6 +14,7 @@ const navItems = [
     { label: 'Staking', href: '/staking' },
     { label: 'Circles', href: '/circles' },
     { label: 'Markets', href: '/events' },
+    { label: 'Disputes', href: '/disputes' },
     { label: 'Governance', href: '/proposals' },
 ]
 

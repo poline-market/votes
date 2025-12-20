@@ -394,6 +394,26 @@ export const circleRegistryABI = [
         stateMutability: 'view',
         type: 'function',
     },
+    {
+        inputs: [
+            { name: 'circleId', type: 'bytes32' },
+            { name: 'member', type: 'address' },
+        ],
+        name: 'addMember',
+        outputs: [],
+        stateMutability: 'nonpayable',
+        type: 'function',
+    },
+    {
+        inputs: [
+            { name: 'circleId', type: 'bytes32' },
+            { name: 'member', type: 'address' },
+        ],
+        name: 'removeMember',
+        outputs: [],
+        stateMutability: 'nonpayable',
+        type: 'function',
+    },
 ] as const
 
 // DisputeResolution ABI
@@ -451,6 +471,23 @@ export const disputeResolutionABI = [
         inputs: [],
         name: 'disputeCount',
         outputs: [{ name: '', type: 'uint256' }],
+        stateMutability: 'view',
+        type: 'function',
+    },
+    {
+        inputs: [{ name: 'index', type: 'uint256' }],
+        name: 'allDisputeIds',
+        outputs: [{ name: '', type: 'bytes32' }],
+        stateMutability: 'view',
+        type: 'function',
+    },
+    {
+        inputs: [
+            { name: 'disputeId', type: 'bytes32' },
+            { name: 'voter', type: 'address' },
+        ],
+        name: 'hasVoted',
+        outputs: [{ name: '', type: 'bool' }],
         stateMutability: 'view',
         type: 'function',
     },
