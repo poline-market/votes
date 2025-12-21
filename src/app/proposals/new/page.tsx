@@ -1,78 +1,166 @@
 'use client'
 
-import { useState } from 'react'
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect } from 'react'
+import { useAccount, useReadContract, useWriteContract } from 'wagmi'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { CONTRACTS, polineDAOABI } from '@/lib/contracts'
+import { CONTRACTS, polineDAOABI, circleRegistryABI, stakingManagerABI } from '@/lib/contracts'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { zeroAddress } from 'viem'
-
-const proposalTypes = [
-    { value: 1, label: 'Oracle', description: 'Mudanças no sistema de oráculos' },
-    { value: 2, label: 'Governança', description: 'Regras de governança da DAO' },
-    { value: 3, label: 'Protocol Rules', description: 'Parâmetros do protocolo (fees, AMM)' },
-    { value: 4, label: 'Disputa', description: 'Sistema de disputas' },
-    { value: 5, label: 'Comunidade', description: 'Crescimento e comunidade' },
-]
+import { zeroAddress, formatEther } from 'viem'
+import { readContract } from '@wagmi/core'
+import { config } from '@/lib/wagmi-config'
+import { AlertCircle, ArrowLeft, Info } from 'lucide-react'
+import Link from 'next/link'
 
 export default function NewProposalPage() {
-    const { isConnected } = useAccount()
+    const { address, isConnected } = useAccount()
     const router = useRouter()
     const [description, setDescription] = useState('')
-    const [proposalType, setProposalType] = useState(2) // Governança por padrão
+    const [selectedCircleId, setSelectedCircleId] = useState<string>('')
+    const [userCircles, setUserCircles] = useState<any[]>([])
+    const [isLoadingCircles, setIsLoadingCircles] = useState(true)
 
-    const { writeContract, data: hash, isPending } = useWriteContract()
+    const { writeContract, isPending } = useWriteContract()
 
-    const { isLoading: isConfirming } = useWaitForTransactionReceipt({
-        hash,
+    // Get user stake
+    const { data: userStake } = useReadContract({
+        address: CONTRACTS.stakingManager as `0x${string}`,
+        abi: stakingManagerABI,
+        functionName: 'getStake',
+        args: address ? [address] : undefined,
+        query: { enabled: !!address },
     })
 
-    const handleCreateProposal = () => {
+    // Get proposal threshold
+    const { data: proposalThreshold } = useReadContract({
+        address: CONTRACTS.polineDAO as `0x${string}`,
+        abi: polineDAOABI,
+        functionName: 'proposalThreshold',
+    })
+
+    // Fetch circles user is member of
+    useEffect(() => {
+        async function fetchUserCircles() {
+            if (!address) {
+                setIsLoadingCircles(false)
+                return
+            }
+
+            try {
+                const circleIds = await readContract(config, {
+                    address: CONTRACTS.circleRegistry as `0x${string}`,
+                    abi: circleRegistryABI,
+                    functionName: 'getAllCircles',
+                }) as `0x${string}`[]
+
+                const userMemberCircles = await Promise.all(
+                    circleIds.map(async (id) => {
+                        const isMember = await readContract(config, {
+                            address: CONTRACTS.circleRegistry as `0x${string}`,
+                            abi: circleRegistryABI,
+                            functionName: 'isMember',
+                            args: [id, address],
+                        }) as boolean
+
+                        if (!isMember) return null
+
+                        const circleData = await readContract(config, {
+                            address: CONTRACTS.circleRegistry as `0x${string}`,
+                            abi: circleRegistryABI,
+                            functionName: 'circles',
+                            args: [id],
+                        }) as any
+
+                        return {
+                            id,
+                            name: circleData[1] || id.substring(0, 10) + '...',
+                            proposalScope: circleData[2],
+                        }
+                    })
+                )
+
+                const filtered = userMemberCircles.filter(c => c !== null)
+                setUserCircles(filtered)
+                if (filtered.length > 0) {
+                    setSelectedCircleId(filtered[0].id)
+                }
+            } catch (error) {
+                console.error('Error fetching circles:', error)
+            } finally {
+                setIsLoadingCircles(false)
+            }
+        }
+
+        fetchUserCircles()
+    }, [address])
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault()
+
         if (!description.trim()) {
-            toast.error('Digite uma descrição para a proposta')
+            toast.error('Digite uma descrição')
             return
         }
 
-        // CircleId baseado no tipo de proposta
-        const circleIds: Record<number, string> = {
-            1: '0x0000000000000000000000000000000000000000000000000000000000000001', // Oracle
-            2: '0x0000000000000000000000000000000000000000000000000000000000000002', // Governance
-            3: '0x0000000000000000000000000000000000000000000000000000000000000003', // Protocol
-            4: '0x0000000000000000000000000000000000000000000000000000000000000004', // Dispute
-            5: '0x0000000000000000000000000000000000000000000000000000000000000005', // Community
+        if (!selectedCircleId) {
+            toast.error('Selecione um círculo')
+            return
         }
+
+        const stake = userStake ? Number(formatEther(userStake)) : 0
+        const threshold = proposalThreshold ? Number(formatEther(proposalThreshold)) : 100
+
+        if (stake < threshold) {
+            toast.error(`Você precisa de ${threshold} POLINE staked (você tem ${stake.toFixed(2)})`)
+            return
+        }
+
+        console.log('Creating proposal with:', {
+            circleId: selectedCircleId.substring(0, 10),
+            propType: 0,
+            description: description.substring(0, 30) + '...',
+        })
 
         writeContract({
             address: CONTRACTS.polineDAO as `0x${string}`,
             abi: polineDAOABI,
-            functionName: 'createProposal',
+            functionName: 'propose',
             args: [
-                circleIds[proposalType] as `0x${string}`,
-                proposalType,
+                selectedCircleId as `0x${string}`,
+                0, // Market Rules - sempre 0 para simplificar
                 description,
-                zeroAddress, // target
-                '0x' as `0x${string}`, // callData
-                0n, // value
+                zeroAddress,
+                '0x' as `0x${string}`,
+                259200n, // 3 days
             ],
         }, {
             onSuccess: () => {
-                toast.success('Proposta criada com sucesso!')
-                router.push('/proposals')
+                toast.success('Proposta criada!')
+                setTimeout(() => router.push('/proposals'), 2000)
             },
-            onError: (error) => {
-                toast.error('Erro ao criar proposta: ' + error.message)
+            onError: (error: any) => {
+                console.error('Full error:', error)
+                if (error.message?.includes('NotCircleMember')) {
+                    toast.error('Você não é membro deste círculo')
+                } else if (error.message?.includes('CircleNotAuthorized')) {
+                    toast.error('Este círculo não tem autoridade para propostas')
+                } else if (error.message?.includes('InsufficientVotingPower')) {
+                    toast.error('Stake insuficiente para criar propostas')
+                } else {
+                    toast.error('Erro: ' + (error.shortMessage || error.message))
+                }
             },
         })
     }
 
     if (!isConnected) {
         return (
-            <div className="space-y-4">
-                <h1 className="text-4xl font-bold">Criar Proposta</h1>
+            <div className="max-w-2xl space-y-6">
+                <h1 className="text-3xl font-medium">Nova Proposta</h1>
                 <Card>
                     <CardContent className="pt-6">
                         <p className="text-center text-muted-foreground">
@@ -84,81 +172,133 @@ export default function NewProposalPage() {
         )
     }
 
+    const stake = userStake ? Number(formatEther(userStake)) : 0
+    const threshold = proposalThreshold ? Number(formatEther(proposalThreshold)) : 100
+    const hasEnoughStake = stake >= threshold
+
     return (
-        <div className="space-y-8 max-w-2xl">
-            <div>
-                <h1 className="text-4xl font-bold">Criar Proposta</h1>
-                <p className="text-muted-foreground mt-2">
-                    Crie uma proposta de governança para a DAO
-                </p>
+        <div className="max-w-2xl space-y-6">
+            <div className="flex items-center gap-4">
+                <Button asChild variant="ghost" size="sm">
+                    <Link href="/proposals"><ArrowLeft className="w-4 h-4" /></Link>
+                </Button>
+                <div>
+                    <h1 className="text-3xl font-medium tracking-tight">Nova Proposta</h1>
+                    <p className="text-muted-foreground text-sm mt-1">
+                        Criar proposta de governança
+                    </p>
+                </div>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Nova Proposta</CardTitle>
-                    <CardDescription>
-                        Você precisa ser membro do círculo correspondente
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="space-y-2">
-                        <Label>Tipo de Proposta (Círculo)</Label>
-                        <div className="grid gap-2">
-                            {proposalTypes.map((type) => (
-                                <label
-                                    key={type.value}
-                                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${proposalType === type.value
-                                            ? 'border-primary bg-primary/5'
-                                            : 'border-border hover:border-primary/50'
-                                        }`}
-                                >
-                                    <input
-                                        type="radio"
-                                        name="proposalType"
-                                        value={type.value}
-                                        checked={proposalType === type.value}
-                                        onChange={() => setProposalType(type.value)}
-                                        className="sr-only"
+            {!hasEnoughStake && (
+                <div className="border border-yellow-500/20 bg-yellow-500/5 p-4 rounded-sm flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-yellow-500 shrink-0" />
+                    <div>
+                        <p className="text-sm font-medium">Stake Insuficiente</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                            Você precisa de {threshold} POLINE staked. Você tem {stake.toFixed(2)}.
+                        </p>
+                        <Button asChild size="sm" variant="outline" className="mt-2">
+                            <Link href="/staking">Stake Mais</Link>
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {userCircles.length === 0 && !isLoadingCircles && (
+                <div className="border border-red-500/20 bg-red-500/5 p-4 rounded-sm flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+                    <div>
+                        <p className="text-sm font-medium">Nenhum Círculo</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                            Você não é membro de nenhum círculo. Junte-se primeiro em /circles.
+                        </p>
+                        <Button asChild size="sm" variant="outline" className="mt-2">
+                            <Link href="/circles">Ver Círculos</Link>
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            <form onSubmit={handleSubmit}>
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-lg">Detalhes da Proposta</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        {isLoadingCircles ? (
+                            <p className="text-sm text-muted-foreground">Carregando círculos...</p>
+                        ) : (
+                            <>
+                                <div className="space-y-2">
+                                    <Label>Seu Círculo</Label>
+                                    <select
+                                        value={selectedCircleId}
+                                        onChange={(e) => setSelectedCircleId(e.target.value)}
+                                        className="w-full px-3 py-2 border rounded-sm bg-background"
+                                        disabled={userCircles.length === 0}
+                                        required
+                                    >
+                                        {userCircles.map((circle) => (
+                                            <option key={circle.id} value={circle.id}>
+                                                {circle.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-muted-foreground">
+                                        O círculo do qual você é membro
+                                    </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="description">Descrição</Label>
+                                    <Textarea
+                                        id="description"
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        placeholder="Descreva sua proposta de forma clara..."
+                                        className="min-h-[120px]"
+                                        required
                                     />
-                                    <div>
-                                        <div className="font-medium">{type.label}</div>
-                                        <div className="text-sm text-muted-foreground">
-                                            {type.description}
+                                    <p className="text-xs text-muted-foreground">
+                                        Explique o que você quer que o DAO faça
+                                    </p>
+                                </div>
+
+                                <div className="bg-muted/50 p-4 rounded-sm border border-border">
+                                    <div className="flex gap-2">
+                                        <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                                        <div className="text-sm space-y-1">
+                                            <p className="font-medium">Informações</p>
+                                            <p className="text-muted-foreground">• Período de votação: 3 dias</p>
+                                            <p className="text-muted-foreground">• Seu stake: {stake.toFixed(2)} POLINE</p>
+                                            <p className="text-muted-foreground">• Timelock: 1 dia após aprovação</p>
                                         </div>
                                     </div>
-                                </label>
-                            ))}
-                        </div>
-                    </div>
+                                </div>
 
-                    <div className="space-y-2">
-                        <Label htmlFor="description">Descrição da Proposta</Label>
-                        <Input
-                            id="description"
-                            placeholder="Descreva sua proposta..."
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                        />
-                    </div>
-
-                    <div className="bg-muted p-4 rounded-lg space-y-2">
-                        <h4 className="font-semibold">⚠️ Requisitos</h4>
-                        <ul className="text-sm text-muted-foreground space-y-1">
-                            <li>• Você precisa ser membro do círculo correspondente</li>
-                            <li>• Ter stake mínimo necessário para o círculo</li>
-                            <li>• Após criação, período de votação inicia</li>
-                        </ul>
-                    </div>
-
-                    <Button
-                        onClick={handleCreateProposal}
-                        disabled={isPending || isConfirming}
-                        className="w-full"
-                    >
-                        {isPending || isConfirming ? 'Criando...' : 'Criar Proposta'}
-                    </Button>
-                </CardContent>
-            </Card>
+                                <div className="flex gap-3">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => router.push('/proposals')}
+                                        className="flex-1"
+                                    >
+                                        Cancelar
+                                    </Button>
+                                    <Button
+                                        type="submit"
+                                        disabled={isPending || !hasEnoughStake || userCircles.length === 0}
+                                        className="flex-1"
+                                    >
+                                        {isPending ? 'Criando...' : 'Criar Proposta'}
+                                    </Button>
+                                </div>
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
+            </form>
         </div>
     )
 }

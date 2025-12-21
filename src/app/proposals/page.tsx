@@ -12,7 +12,7 @@ import { config } from '@/lib/wagmi-config'
 import { formatEther } from 'viem'
 
 // Helper Enums
-const PROPOSAL_TYPES = ['Governance', 'Protocol', 'Membership']
+const PROPOSAL_TYPES = ['Market Rules', 'Trusted Sources', 'AMM Parameters', 'Fees', 'Dispute Policy', 'Circle Membership', 'Parameter Change']
 const PROPOSAL_STATUS = ['Pending', 'Active', 'Canceled', 'Defeated', 'Succeeded', 'Queued', 'Expired', 'Executed']
 
 // Componente "Proposal Row" - Tabular style
@@ -61,60 +61,58 @@ function ProposalRow({ id, title, type, status, forVotes, againstVotes }: any) {
 export default function ProposalsPage() {
     const [proposals, setProposals] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [filter, setFilter] = useState<string>('all')
 
-    const { data: proposalCount } = useReadContract({
-        address: CONTRACTS.polineDAO as `0x${string}`,
-        abi: polineDAOABI,
-        functionName: 'proposalCount',
-    })
-
+    // Fetch all proposals by trying indices 0-99 (since we don't have proposalCount)
     useEffect(() => {
         async function fetchProposals() {
-            if (!proposalCount || Number(proposalCount) === 0) {
-                setIsLoading(false)
-                return
-            }
-
+            setIsLoading(true)
             try {
-                const count = Number(proposalCount)
-                const promises = []
+                const proposalPromises = []
+                // Try fetching up to 100 proposals
+                for (let i = 0; i < 100; i++) {
+                    proposalPromises.push((async () => {
+                        try {
+                            const proposalId: any = await readContract(config, {
+                                address: CONTRACTS.polineDAO as `0x${string}`,
+                                abi: polineDAOABI,
+                                functionName: 'allProposalIds',
+                                args: [BigInt(i)],
+                            })
 
-                // Fetch newest first
-                for (let i = count - 1; i >= 0; i--) {
-                    promises.push((async () => {
-                        const id = await readContract(config, {
-                            address: CONTRACTS.polineDAO as `0x${string}`,
-                            abi: polineDAOABI,
-                            functionName: 'proposalIds',
-                            args: [BigInt(i)],
-                        })
-                        const data: any = await readContract(config, {
-                            address: CONTRACTS.polineDAO as `0x${string}`,
-                            abi: polineDAOABI,
-                            functionName: 'getProposal',
-                            args: [id],
-                        })
-                        return {
-                            id: data[0],
-                            proposer: data[1],
-                            circleId: data[2],
-                            proposalType: data[3],
-                            description: data[4],
-                            callData: data[5],
-                            target: data[6],
-                            createdAt: data[7],
-                            deadline: data[8],
-                            forVotes: data[9],
-                            againstVotes: data[10],
-                            abstainVotes: data[11],
-                            status: data[12],
-                            eta: data[13]
+                            const proposalData: any = await readContract(config, {
+                                address: CONTRACTS.polineDAO as `0x${string}`,
+                                abi: polineDAOABI,
+                                functionName: 'getProposal',
+                                args: [proposalId],
+                            })
+
+                            return {
+                                id: proposalData.id,
+                                proposer: proposalData.proposer,
+                                circleId: proposalData.circleId,
+                                propType: proposalData.propType,
+                                description: proposalData.description,
+                                callData: proposalData.callData,
+                                target: proposalData.target,
+                                createdAt: proposalData.createdAt,
+                                votingStarts: proposalData.votingStarts,
+                                votingEnds: proposalData.votingEnds,
+                                forVotes: proposalData.forVotes,
+                                againstVotes: proposalData.againstVotes,
+                                abstainVotes: proposalData.abstainVotes,
+                                status: proposalData.status,
+                                executionTime: proposalData.executionTime,
+                            }
+                        } catch {
+                            // Index doesn't exist, stop trying
+                            return null
                         }
                     })())
                 }
 
-                const results = await Promise.all(promises)
-                setProposals(results)
+                const fetchedProposals = (await Promise.all(proposalPromises)).filter(p => p !== null)
+                setProposals(fetchedProposals.reverse()) // Newest first
             } catch (error) {
                 console.error('Error fetching proposals:', error)
             } finally {
@@ -123,7 +121,7 @@ export default function ProposalsPage() {
         }
 
         fetchProposals()
-    }, [proposalCount])
+    }, [])
 
     return (
         <div className="space-y-8">
@@ -157,7 +155,7 @@ export default function ProposalsPage() {
                         key={prop.id}
                         id={prop.id}
                         title={prop.description}
-                        type={prop.proposalType}
+                        type={prop.propType}
                         status={prop.status}
                         forVotes={prop.forVotes}
                         againstVotes={prop.againstVotes}

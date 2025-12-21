@@ -63,10 +63,20 @@ export default function StakingPage() {
         functionName: 'unstakeCooldown',
     })
 
+    // Check voting power
+    const { data: votingPower, refetch: refetchVotes } = useReadContract({
+        address: CONTRACTS.polineToken as `0x${string}`,
+        abi: polineTokenABI,
+        functionName: 'getVotes',
+        args: address ? [address] : undefined,
+        query: { enabled: !!address },
+    })
+
     // Write contracts
     const { writeContract: stake, data: stakeHash, isPending: isStaking } = useWriteContract()
     const { writeContract: requestUnstake, isPending: isRequesting } = useWriteContract()
     const { writeContract: completeUnstake, isPending: isCompleting } = useWriteContract()
+    const { writeContract: delegateVotes, isPending: isDelegating } = useWriteContract()
 
     const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
         hash: stakeHash,
@@ -125,6 +135,24 @@ export default function StakingPage() {
             onSuccess: () => {
                 toast.success('Unstake completado!')
                 refetchStake()
+            },
+            onError: (error) => {
+                toast.error('Erro: ' + error.message)
+            },
+        })
+    }
+
+    const handleDelegate = () => {
+        if (!address) return
+        delegateVotes({
+            address: CONTRACTS.polineToken as `0x${string}`,
+            abi: polineTokenABI,
+            functionName: 'delegate',
+            args: [address],
+        }, {
+            onSuccess: () => {
+                toast.success('Voting power ativado!')
+                setTimeout(() => refetchVotes(), 2000)
             },
             onError: (error) => {
                 toast.error('Erro: ' + error.message)
@@ -240,6 +268,30 @@ export default function StakingPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Voting Power Warning */}
+            {tokenBalance && BigInt(tokenBalance) > BigInt(0) && votingPower === BigInt(0) && (
+                <Card className="border-yellow-500/20 bg-yellow-500/5 shadow-none rounded-sm">
+                    <CardContent className="p-6">
+                        <div className="flex items-start gap-4">
+                            <div className="flex-1">
+                                <h3 className="font-medium text-lg mb-2 tracking-tight">⚡ Ativar Voting Power</h3>
+                                <p className="text-sm text-muted-foreground mb-4">
+                                    Você tem tokens mas não tem voting power. Clique abaixo para delegar seus tokens para você mesmo e poder criar propostas de governança.
+                                </p>
+                                <Button
+                                    onClick={handleDelegate}
+                                    disabled={isDelegating}
+                                    variant="default"
+                                    className="rounded-sm font-mono uppercase text-xs"
+                                >
+                                    {isDelegating ? 'Ativando...' : 'Ativar Voting Power'}
+                                </Button>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             <Card className="border-border shadow-none rounded-sm">
                 <CardHeader>
