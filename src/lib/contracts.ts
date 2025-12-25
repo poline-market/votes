@@ -1,12 +1,14 @@
 // Contract addresses deployed on Polygon Amoy testnet
 export const CONTRACTS = {
-    polineToken: '0x1Ae28C576Bc48652BDf316cCfBA09f74F3E890e9',
-    stakingManager: '0x0289E2C7129BFBcCa50465eCF631aBb0EeA39A10',
-    circleRegistry: '0x24BeA193279A2dDf20aCd82F0e801BbC65a9Fb11',
-    oracleVoting: '0xb7E76E16E28100664dC1649b73e1788224c59bD5',
-    disputeResolution: '0x350632960846D2583F9f7e123Ec33de48448d0c4',
-    polineDAO: '0xcce1f7890c3611bd96404460af9cfd74a99fec13',
-    polinePurchase: '0x6659beb09d82192feb66c8896f524fad6d01bd28',
+    polineToken: '0xea102082ae2a897c4dbbebf39b4c15e8a8341307',
+    stakingManager: '0x9f33ef78fe276d7e9d03b42308e08d1094436713',
+    circleRegistry: '0x86a61152bd41b7cd34db767ec0a916f39118605e',
+    oracleVoting: '0xf66413ef88e068dc594886be88e59f449893f9a4',
+    disputeResolution: '0x884f6a11079139b9077efc998c0a87778165bab3',
+    polineDAO: '0x6e64588abfa6616fa0c163f6d02f23c06a7f573e',
+    polinePurchase: '0xeb409d3f0e692b6925665af906706f42475c4142',
+    treasuryManager: '0x24f29fe3765ba33ec46984e73c537c2bb4ff83a7',
+    storageRegistry: '0x9DFd21872D1aaaAc289527f17048072deE1C1e82',
 } as const
 
 // PolineToken ABI (soulbound governance token)
@@ -56,6 +58,13 @@ export const polineTokenABI = [
         ],
         name: 'allowance',
         outputs: [{ name: '', type: 'uint256' }],
+        stateMutability: 'view',
+        type: 'function',
+    },
+    {
+        inputs: [{ name: 'account', type: 'address' }],
+        name: 'delegates',
+        outputs: [{ name: '', type: 'address' }],
         stateMutability: 'view',
         type: 'function',
     },
@@ -362,6 +371,34 @@ export const polineDAOABI = [
         stateMutability: 'view',
         type: 'function',
     },
+    {
+        inputs: [
+            { name: 'proposalId', type: 'bytes32' },
+            { name: 'voter', type: 'address' },
+        ],
+        name: 'votes',
+        outputs: [
+            { name: 'hasVoted', type: 'bool' },
+            { name: 'support', type: 'uint8' },
+            { name: 'weight', type: 'uint256' },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+    },
+    {
+        inputs: [{ name: 'proposalId', type: 'bytes32' }],
+        name: 'queue',
+        outputs: [],
+        stateMutability: 'nonpayable',
+        type: 'function',
+    },
+    {
+        inputs: [{ name: 'proposalId', type: 'bytes32' }],
+        name: 'execute',
+        outputs: [],
+        stateMutability: 'nonpayable',
+        type: 'function',
+    },
 ] as const
 
 // CircleRegistry ABI
@@ -448,6 +485,20 @@ export const circleRegistryABI = [
             { name: 'member', type: 'address' },
         ],
         name: 'removeMember',
+        outputs: [],
+        stateMutability: 'nonpayable',
+        type: 'function',
+    },
+    {
+        inputs: [{ name: 'circleId', type: 'bytes32' }],
+        name: 'joinCircle',
+        outputs: [],
+        stateMutability: 'nonpayable',
+        type: 'function',
+    },
+    {
+        inputs: [{ name: 'circleId', type: 'bytes32' }],
+        name: 'leaveCircle',
         outputs: [],
         stateMutability: 'nonpayable',
         type: 'function',

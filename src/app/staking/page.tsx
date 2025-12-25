@@ -16,6 +16,7 @@ import { Wallet } from 'lucide-react'
 export default function StakingPage() {
     const { address, isConnected } = useAccount()
     const [amount, setAmount] = useState('')
+    const [delegateTarget, setDelegateTarget] = useState('')
 
     // Read token balance
     const { data: tokenBalance } = useReadContract({
@@ -78,6 +79,15 @@ export default function StakingPage() {
     const { writeContract: completeUnstake, isPending: isCompleting } = useWriteContract()
     const { writeContract: delegateVotes, isPending: isDelegating } = useWriteContract()
 
+    // Get current delegate
+    const { data: currentDelegate } = useReadContract({
+        address: CONTRACTS.polineToken as `0x${string}`,
+        abi: polineTokenABI,
+        functionName: 'delegates',
+        args: address ? [address] : undefined,
+        query: { enabled: !!address },
+    })
+
     const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
         hash: stakeHash,
     })
@@ -98,11 +108,23 @@ export default function StakingPage() {
             toast.error('Digite um valor válido')
             return
         }
+
+        // Validate user has sufficient token balance
+        const stakeAmount = parseEther(amount)
+        const currentStake = userStake ? BigInt(userStake) : BigInt(0)
+        const totalRequired = currentStake + stakeAmount
+        const balance = tokenBalance ? BigInt(tokenBalance) : BigInt(0)
+
+        if (balance < totalRequired) {
+            toast.error(`Saldo insuficiente. Você tem ${Number(formatEther(balance)).toFixed(2)} POLINE, mas precisa de ${Number(formatEther(totalRequired)).toFixed(2)} POLINE no total.`)
+            return
+        }
+
         stake({
             address: CONTRACTS.stakingManager as `0x${string}`,
             abi: stakingManagerABI,
             functionName: 'stake',
-            args: [parseEther(amount)],
+            args: [stakeAmount],
         }, {
             onError: (error) => {
                 toast.error('Erro ao fazer stake: ' + error.message)
@@ -160,6 +182,28 @@ export default function StakingPage() {
         })
     }
 
+    const handleDelegateToOther = () => {
+        if (!delegateTarget || !/^0x[a-fA-F0-9]{40}$/.test(delegateTarget)) {
+            toast.error('Endereço inválido')
+            return
+        }
+        delegateVotes({
+            address: CONTRACTS.polineToken as `0x${string}`,
+            abi: polineTokenABI,
+            functionName: 'delegate',
+            args: [delegateTarget as `0x${string}`],
+        }, {
+            onSuccess: () => {
+                toast.success('Delegação realizada!')
+                setDelegateTarget('')
+                setTimeout(() => refetchVotes(), 2000)
+            },
+            onError: (error) => {
+                toast.error('Erro: ' + error.message)
+            },
+        })
+    }
+
     if (!isConnected) {
         return (
             <div className="space-y-8">
@@ -189,7 +233,7 @@ export default function StakingPage() {
             </div>
 
             {/* Zero Balance Banner */}
-            {tokenBalance && BigInt(tokenBalance) === BigInt(0) && (
+            {tokenBalance !== undefined && BigInt(tokenBalance) === BigInt(0) && (
                 <Card className="border-primary/20 bg-primary/5 shadow-none rounded-sm">
                     <CardContent className="p-6">
                         <div className="flex items-start gap-4">
@@ -269,30 +313,7 @@ export default function StakingPage() {
                 </Card>
             </div>
 
-            {/* Voting Power Warning */}
-            {tokenBalance && BigInt(tokenBalance) > BigInt(0) && votingPower === BigInt(0) && (
-                <Card className="border-yellow-500/20 bg-yellow-500/5 shadow-none rounded-sm">
-                    <CardContent className="p-6">
-                        <div className="flex items-start gap-4">
-                            <div className="flex-1">
-                                <h3 className="font-medium text-lg mb-2 tracking-tight">⚡ Ativar Voting Power</h3>
-                                <p className="text-sm text-muted-foreground mb-4">
-                                    Você tem tokens mas não tem voting power. Clique abaixo para delegar seus tokens para você mesmo e poder criar propostas de governança.
-                                </p>
-                                <Button
-                                    onClick={handleDelegate}
-                                    disabled={isDelegating}
-                                    variant="default"
-                                    className="rounded-sm font-mono uppercase text-xs"
-                                >
-                                    {isDelegating ? 'Ativando...' : 'Ativar Voting Power'}
-                                </Button>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
+            {/* Fazer Stake Card - Second position after stats */}
             <Card className="border-border shadow-none rounded-sm">
                 <CardHeader>
                     <CardTitle className="text-lg font-medium tracking-tight">Fazer Stake</CardTitle>
@@ -356,7 +377,7 @@ export default function StakingPage() {
             </Card>
 
             {/* Unstake Card - Only if has stake */}
-            {userStake && BigInt(userStake) > BigInt(0) && (
+            {userStake !== undefined && BigInt(userStake) > BigInt(0) && (
                 <Card className="border-border shadow-none rounded-sm">
                     <CardHeader>
                         <CardTitle className="text-lg font-medium tracking-tight">Unstake</CardTitle>
@@ -408,6 +429,113 @@ export default function StakingPage() {
                     </CardContent>
                 </Card>
             )}
+
+            {/* Voting Power Warning */}
+            {tokenBalance !== undefined && BigInt(tokenBalance) > BigInt(0) && votingPower === BigInt(0) && (
+                <Card className="border-yellow-500/20 bg-yellow-500/5 shadow-none rounded-sm">
+                    <CardContent className="p-6">
+                        <div className="flex items-start gap-4">
+                            <div className="flex-1">
+                                <h3 className="font-medium text-lg mb-2 tracking-tight">⚡ Ativar Voting Power</h3>
+                                <p className="text-sm text-muted-foreground mb-4">
+                                    Você tem tokens mas não tem voting power. Clique abaixo para delegar seus tokens para você mesmo e poder criar propostas de governança.
+                                </p>
+                                <Button
+                                    onClick={handleDelegate}
+                                    disabled={isDelegating}
+                                    variant="default"
+                                    className="rounded-sm font-mono uppercase text-xs"
+                                >
+                                    {isDelegating ? 'Ativando...' : 'Ativar Voting Power'}
+                                </Button>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Advanced Delegation Section */}
+            <Card className="border-border shadow-none">
+                <CardHeader>
+                    <CardTitle className="text-lg font-medium tracking-tight">Delegação Avançada</CardTitle>
+                    <CardDescription>
+                        Delegue seu voting power para outro endereço de confiança
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {/* Current Delegation */}
+                    <div className="space-y-2">
+                        <Label className="text-sm font-medium">Delegado Atual</Label>
+                        <div className="p-3 bg-muted/50 border border-border font-mono text-sm break-all">
+                            {currentDelegate ? (
+                                <div className="space-y-1">
+                                    <p className="text-xs text-muted-foreground">Delegando para:</p>
+                                    <p className="font-medium">
+                                        {currentDelegate === address ? (
+                                            <span className="text-primary">Você mesmo (Self-delegated)</span>
+                                        ) : (
+                                            currentDelegate
+                                        )}
+                                    </p>
+                                </div>
+                            ) : (
+                                <p className="text-muted-foreground">Nenhuma delegação ativa</p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Delegate to Someone Else */}
+                    <div className="space-y-3">
+                        <Label htmlFor="delegateTarget" className="text-sm font-medium">
+                            Delegar para Outro Endereço
+                        </Label>
+                        <div className="flex gap-2">
+                            <Input
+                                id="delegateTarget"
+                                placeholder="0x..."
+                                value={delegateTarget}
+                                onChange={(e) => setDelegateTarget(e.target.value)}
+                                className="font-mono text-sm"
+                            />
+                            <Button
+                                onClick={handleDelegateToOther}
+                                disabled={isDelegating || !delegateTarget}
+                                className="font-mono uppercase text-xs whitespace-nowrap"
+                            >
+                                {isDelegating ? 'Delegando...' : 'Delegar'}
+                            </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Cole o endereço Ethereum completo (0x...)
+                        </p>
+                    </div>
+
+                    {/* Revoke Delegation (delegate back to self) */}
+                    {currentDelegate && currentDelegate !== address && (
+                        <div className="pt-3 border-t border-border">
+                            <Button
+                                onClick={handleDelegate}
+                                disabled={isDelegating}
+                                variant="outline"
+                                className="w-full font-mono uppercase text-xs"
+                            >
+                                {isDelegating ? 'Revogando...' : 'Revogar Delegação (Delegar para Si)'}
+                            </Button>
+                        </div>
+                    )}
+
+                    {/* Info */}
+                    <div className="bg-blue-500/5 border border-blue-500/20 p-3 text-xs space-y-1.5">
+                        <p className="font-medium">📋 Como funciona:</p>
+                        <ul className="text-muted-foreground space-y-0.5 list-disc list-inside">
+                            <li>Delegar = transferir seu voting power temporariamente</li>
+                            <li>Você mantém os tokens, mas o delegado pode votar</li>
+                            <li>Pode revogar a qualquer momento</li>
+                            <li>Self-delegation = você mantém o voting power</li>
+                        </ul>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     )
 }

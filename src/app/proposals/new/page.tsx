@@ -23,8 +23,38 @@ export default function NewProposalPage() {
     const [selectedCircleId, setSelectedCircleId] = useState<string>('')
     const [userCircles, setUserCircles] = useState<any[]>([])
     const [isLoadingCircles, setIsLoadingCircles] = useState(true)
+    const [minVotingPeriod, setMinVotingPeriod] = useState<bigint>(BigInt(259200)) // Default 3 days
 
     const { writeContract, isPending } = useWriteContract()
+
+    // ABI for reading minVotingPeriod
+    const minVotingPeriodABI = [{
+        inputs: [],
+        name: 'minVotingPeriod',
+        outputs: [{ name: '', type: 'uint256' }],
+        stateMutability: 'view',
+        type: 'function',
+    }] as const
+
+    // Fetch minVotingPeriod from PolineDAO contract on mount
+    useEffect(() => {
+        const fetchMinVotingPeriod = async () => {
+            try {
+                const period = await readContract(config, {
+                    address: CONTRACTS.polineDAO as `0x${string}`,
+                    abi: minVotingPeriodABI,
+                    functionName: 'minVotingPeriod',
+                }) as bigint
+
+                setMinVotingPeriod(period)
+                console.log('Fetched minVotingPeriod:', Number(period), 'seconds')
+            } catch (error) {
+                console.error('Error fetching minVotingPeriod:', error)
+            }
+        }
+
+        fetchMinVotingPeriod()
+    }, [])
 
     // Get user stake
     const { data: userStake } = useReadContract({
@@ -135,7 +165,7 @@ export default function NewProposalPage() {
                 description,
                 zeroAddress,
                 '0x' as `0x${string}`,
-                259200n, // 3 days
+                minVotingPeriod, // Uses contract's minVotingPeriod
             ],
         }, {
             onSuccess: () => {
@@ -270,7 +300,7 @@ export default function NewProposalPage() {
                                         <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
                                         <div className="text-sm space-y-1">
                                             <p className="font-medium">Informações</p>
-                                            <p className="text-muted-foreground">• Período de votação: 3 dias</p>
+                                            <p className="text-muted-foreground">• Período de votação: {Number(minVotingPeriod) < 60 ? `${minVotingPeriod} segundos` : Number(minVotingPeriod) < 3600 ? `${Math.floor(Number(minVotingPeriod) / 60)} minutos` : Number(minVotingPeriod) < 86400 ? `${Math.floor(Number(minVotingPeriod) / 3600)} horas` : `${Math.floor(Number(minVotingPeriod) / 86400)} dias`}</p>
                                             <p className="text-muted-foreground">• Seu stake: {stake.toFixed(2)} POLINE</p>
                                             <p className="text-muted-foreground">• Timelock: 1 dia após aprovação</p>
                                         </div>

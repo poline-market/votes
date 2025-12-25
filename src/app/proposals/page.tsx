@@ -12,7 +12,7 @@ import { config } from '@/lib/wagmi-config'
 import { formatEther } from 'viem'
 
 // Helper Enums
-const PROPOSAL_TYPES = ['Market Rules', 'Trusted Sources', 'AMM Parameters', 'Fees', 'Dispute Policy', 'Circle Membership', 'Parameter Change']
+const PROPOSAL_TYPES = ['Market Rules', 'Trusted Sources', 'AMM Parameters', 'Fees', 'Dispute Policy', 'Circle Membership', 'Parameter Change', 'General', 'Budget Wallet', 'Budget Allocation']
 const PROPOSAL_STATUS = ['Pending', 'Active', 'Canceled', 'Defeated', 'Succeeded', 'Queued', 'Expired', 'Executed']
 
 // Componente "Proposal Row" - Tabular style
@@ -63,55 +63,60 @@ export default function ProposalsPage() {
     const [isLoading, setIsLoading] = useState(true)
     const [filter, setFilter] = useState<string>('all')
 
-    // Fetch all proposals by trying indices 0-99 (since we don't have proposalCount)
+    // Fetch proposals by trying indices until we get an error
     useEffect(() => {
         async function fetchProposals() {
             setIsLoading(true)
+            console.log('Starting proposal fetch from:', CONTRACTS.polineDAO)
             try {
-                const proposalPromises = []
-                // Try fetching up to 100 proposals
-                for (let i = 0; i < 100; i++) {
-                    proposalPromises.push((async () => {
-                        try {
-                            const proposalId: any = await readContract(config, {
-                                address: CONTRACTS.polineDAO as `0x${string}`,
-                                abi: polineDAOABI,
-                                functionName: 'allProposalIds',
-                                args: [BigInt(i)],
-                            })
+                const fetchedProposals: any[] = []
 
-                            const proposalData: any = await readContract(config, {
-                                address: CONTRACTS.polineDAO as `0x${string}`,
-                                abi: polineDAOABI,
-                                functionName: 'getProposal',
-                                args: [proposalId],
-                            })
+                // Try fetching proposals by index until we hit an error
+                for (let i = 0; ; i++) {
+                    try {
+                        console.log(`Trying allProposalIds(${i})...`)
+                        const proposalId = await readContract(config, {
+                            address: CONTRACTS.polineDAO as `0x${string}`,
+                            abi: polineDAOABI,
+                            functionName: 'allProposalIds',
+                            args: [BigInt(i)],
+                        }) as `0x${string}`
 
-                            return {
-                                id: proposalData.id,
-                                proposer: proposalData.proposer,
-                                circleId: proposalData.circleId,
-                                propType: proposalData.propType,
-                                description: proposalData.description,
-                                callData: proposalData.callData,
-                                target: proposalData.target,
-                                createdAt: proposalData.createdAt,
-                                votingStarts: proposalData.votingStarts,
-                                votingEnds: proposalData.votingEnds,
-                                forVotes: proposalData.forVotes,
-                                againstVotes: proposalData.againstVotes,
-                                abstainVotes: proposalData.abstainVotes,
-                                status: proposalData.status,
-                                executionTime: proposalData.executionTime,
-                            }
-                        } catch {
-                            // Index doesn't exist, stop trying
-                            return null
-                        }
-                    })())
+                        console.log(`Fetched proposalId[${i}]:`, proposalId)
+
+                        const proposalData = await readContract(config, {
+                            address: CONTRACTS.polineDAO as `0x${string}`,
+                            abi: polineDAOABI,
+                            functionName: 'getProposal',
+                            args: [proposalId],
+                        }) as any
+
+                        console.log(`Proposal[${i}] data:`, proposalData)
+
+                        fetchedProposals.push({
+                            id: proposalData.id,
+                            proposer: proposalData.proposer,
+                            circleId: proposalData.circleId,
+                            propType: proposalData.propType,
+                            description: proposalData.description,
+                            callData: proposalData.callData,
+                            target: proposalData.target,
+                            createdAt: proposalData.createdAt,
+                            votingStarts: proposalData.votingStarts,
+                            votingEnds: proposalData.votingEnds,
+                            forVotes: proposalData.forVotes,
+                            againstVotes: proposalData.againstVotes,
+                            abstainVotes: proposalData.abstainVotes,
+                            status: proposalData.status,
+                            executionTime: proposalData.executionTime,
+                        })
+                    } catch {
+                        // Index doesn't exist, we've fetched all proposals
+                        console.log(`Total proposals found: ${fetchedProposals.length}`)
+                        break
+                    }
                 }
 
-                const fetchedProposals = (await Promise.all(proposalPromises)).filter(p => p !== null)
                 setProposals(fetchedProposals.reverse()) // Newest first
             } catch (error) {
                 console.error('Error fetching proposals:', error)

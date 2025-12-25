@@ -114,14 +114,12 @@ export default function CirclesPage() {
             return
         }
 
-        // Call addMember on CircleRegistry
-        // Note: This requires CIRCLE_ADMIN_ROLE
-        // For now, users must contact admins or wait for governance
+        // Call joinCircle - no admin approval needed, just sufficient stake
         requestMembership({
             address: CONTRACTS.circleRegistry as `0x${string}`,
             abi: circleRegistryABI,
-            functionName: 'addMember',
-            args: [circle.id, address],
+            functionName: 'joinCircle',
+            args: [circle.id],
         }, {
             onSuccess: () => {
                 toast.success(`Successfully joined ${circle.name}!`)
@@ -129,12 +127,11 @@ export default function CirclesPage() {
                 setTimeout(() => window.location.reload(), 2000)
             },
             onError: (error: any) => {
-                // Check if error is due to missing CIRCLE_ADMIN_ROLE
-                if (error.message?.includes('AccessControl') || error.message?.includes('missing role')) {
-                    toast.error(
-                        `Circle membership requires admin approval.\n\nPlease contact:\n- Circle admins\n- DAO governance\n- Discord: discord.gg/poline`,
-                        { duration: 8000 }
-                    )
+                // Check for specific error types
+                if (error.message?.includes('InsufficientStake')) {
+                    toast.error(`Insufficient stake to join this circle`)
+                } else if (error.message?.includes('MemberAlreadyInCircle')) {
+                    toast.info('You are already a member of this circle')
                 } else {
                     toast.error(`Error joining circle: ${error.message}`)
                 }

@@ -8,18 +8,24 @@ import { Button } from '@/components/ui/button'
 import { CONTRACTS, polineDAOABI, stakingManagerABI } from '@/lib/contracts'
 import { formatEther } from 'viem'
 import { toast } from 'sonner'
-import { ArrowLeft, ThumbsUp, ThumbsDown, Minus, Clock, Check } from 'lucide-react'
+import { ArrowLeft, ThumbsUp, ThumbsDown, Minus, Clock, Check, MessageSquare, Send, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { readContract } from '@wagmi/core'
 import { config } from '@/lib/wagmi-config'
+import { Textarea } from '@/components/ui/textarea'
+import { uploadComment, loadComments, deleteComment, type Comment } from '@/lib/ipfs-comments'
 
 const PROPOSAL_STATUS = ['Pending', 'Active', 'Cancelled', 'Defeated', 'Succeeded', 'Queued', 'Executed']
-const PROPOSAL_TYPES = ['Market Rules', 'Trusted Sources', 'AMM Parameters', 'Fees', 'Dispute Policy', 'Circle Membership', 'Parameter Change']
+const PROPOSAL_TYPES = ['Market Rules', 'Trusted Sources', 'AMM Parameters', 'Fees', 'Dispute Policy', 'Circle Membership', 'Parameter Change', 'General', 'Budget Wallet', 'Budget Allocation']
 
 export default function ProposalDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { address, isConnected } = useAccount()
     const [proposal, setProposal] = useState<any>(null)
     const [isLoading, setIsLoading] = useState(true)
+    const [comments, setComments] = useState<Comment[]>([])
+    const [newComment, setNewComment] = useState('')
+    const [isPosting, setIsPosting] = useState(false)
+    const [autoExecutionAttempted, setAutoExecutionAttempted] = useState(false)
 
     // Unwrap params Promise (Next.js 15)
     const { id } = use(params)
@@ -83,6 +89,48 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
         fetchProposal()
     }, [proposalId])
 
+    // Load comments
+    useEffect(() => {
+        if (proposalId) {
+            const loaded = loadComments(proposalId)
+            setComments(loaded)
+        }
+    }, [proposalId])
+
+    const handlePostComment = async () => {
+        if (!newComment.trim() || !address) return
+
+        setIsPosting(true)
+        try {
+            const comment: Comment = {
+                author: address,
+                text: newComment.trim(),
+                timestamp: Date.now(),
+            }
+
+            await uploadComment(proposalId, comment)
+            setComments([...comments, comment])
+            setNewComment('')
+            toast.success('Comment posted!')
+        } catch (error) {
+            toast.error('Failed to post comment')
+        } finally {
+            setIsPosting(false)
+        }
+    }
+
+    const handleDeleteComment = async (timestamp: number) => {
+        if (!address) return
+
+        try {
+            await deleteComment(proposalId, timestamp, address)
+            setComments(comments.filter(c => c.timestamp !== timestamp))
+            toast.success('Comment deleted')
+        } catch (error) {
+            toast.error('Failed to delete comment')
+        }
+    }
+
     const castVote = (support: number) => {
         castVoteWrite({
             address: CONTRACTS.polineDAO as `0x${string}`,
@@ -104,7 +152,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
         queueWrite({
             address: CONTRACTS.polineDAO as `0x${string}`,
             abi: polineDAOABI,
-            functionName: 'queueProposal',
+            functionName: 'queue',
             args: [proposalId],
         }, {
             onSuccess: () => {
@@ -121,7 +169,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
         executeWrite({
             address: CONTRACTS.polineDAO as `0x${string}`,
             abi: polineDAOABI,
-            functionName: 'executeProposal',
+            functionName: 'execute',
             args: [proposalId],
         }, {
             onSuccess: () => {
@@ -151,7 +199,11 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
 
     const now = Math.floor(Date.now() / 1000)
     const isVotingActive = proposal.status === 1 && now >= Number(proposal.votingStarts) && now <= Number(proposal.votingEnds)
-    const canQueue = proposal.status === 4 && address?.toLowerCase() === proposal.proposer?.toLowerCase()
+    const isVotingEnded = now > Number(proposal.votingEnds)
+    const proposalPassed = proposal.forVotes > proposal.againstVotes
+    // Can queue: status is Active (1), voting ended, and proposal passed
+    const canQueue = proposal.status === 1 && isVotingEnded && proposalPassed
+    // Can execute: status is Queued (5) and timelock passed
     const canExecute = proposal.status === 5 && now >= Number(proposal.executionTime)
 
     const stake = userStake ? Number(formatEther(userStake)) : 0
@@ -313,6 +365,82 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
                             </div>
                         )}
                     </div>
+                </CardContent>
+            </Card>
+
+            {/* Comments Section */}
+            <Card className="border-border shadow-none">
+                <CardHeader>
+                    <div className="flex items-center gap-2">
+                        <MessageSquare className="w-5 h-5" />
+                        <CardTitle className="text-lg">Discussion ({comments.length})</CardTitle>
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    {/* Post Comment */}
+                    {isConnected ? (
+                        <div className="space-y-3 pb-4 border-b border-border">
+                            <Textarea
+                                placeholder="Share your thoughts..."
+                                value={newComment}
+                                onChange={(e) => setNewComment(e.target.value)}
+                                className="min-h-[100px]"
+                            />
+                            <Button
+                                onClick={handlePostComment}
+                                disabled={!newComment.trim() || isPosting}
+                                size="sm"
+                                className="gap-2"
+                            >
+                                <Send className="w-4 h-4" />
+                                {isPosting ? 'Posting...' : 'Post Comment'}
+                            </Button>
+                        </div>
+                    ) : (
+                        <p className="text-sm text-muted-foreground pb-4 border-b border-border">
+                            Connect your wallet to join the discussion
+                        </p>
+                    )}
+
+                    {/* Comments List */}
+                    {comments.length === 0 ? (
+                        <p className="text-center text-sm text-muted-foreground py-8">
+                            No comments yet. Be the first to share your thoughts!
+                        </p>
+                    ) : (
+                        <div className="space-y-4">
+                            {comments.map((comment) => (
+                                <div key={comment.timestamp} className="p-4 border border-border hover:bg-muted/30 transition-colors">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="flex-1 space-y-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-mono text-xs text-muted-foreground">
+                                                    {comment.author.substring(0, 6)}...{comment.author.substring(38)}
+                                                </span>
+                                                {comment.author.toLowerCase() === proposal?.proposer.toLowerCase() && (
+                                                    <Badge variant="secondary" className="text-[10px]">Author</Badge>
+                                                )}
+                                                <span className="text-xs text-muted-foreground">
+                                                    {new Date(comment.timestamp).toLocaleString()}
+                                                </span>
+                                            </div>
+                                            <p className="text-sm whitespace-pre-wrap">{comment.text}</p>
+                                        </div>
+                                        {address && comment.author.toLowerCase() === address.toLowerCase() && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleDeleteComment(comment.timestamp)}
+                                                className="h-8 w-8 p-0"
+                                            >
+                                                <Trash2 className="w-4 h-4 text-destructive" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>
