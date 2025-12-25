@@ -14,6 +14,8 @@ import { readContract } from '@wagmi/core'
 import { config } from '@/lib/wagmi-config'
 import { Textarea } from '@/components/ui/textarea'
 import { uploadComment, loadComments, deleteComment, type Comment } from '@/lib/ipfs-comments'
+import { ProfileCard } from '@/components/ProfileCard'
+import { UserAvatar } from '@/components/UserAvatar'
 
 const PROPOSAL_STATUS = ['Pending', 'Active', 'Cancelled', 'Defeated', 'Succeeded', 'Queued', 'Executed']
 const PROPOSAL_TYPES = ['Market Rules', 'Trusted Sources', 'AMM Parameters', 'Fees', 'Dispute Policy', 'Circle Membership', 'Parameter Change', 'General', 'Budget Wallet', 'Budget Allocation']
@@ -229,6 +231,22 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
                 </div>
             </div>
 
+            {/* Proposer Info */}
+            <Card className="border-border shadow-none rounded-sm">
+                <CardContent className="py-4">
+                    <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Proposer</span>
+                        <ProfileCard
+                            address={proposal.proposer}
+                            showBio={true}
+                            showBadge={true}
+                            badgeText="Proposer"
+                            size="sm"
+                        />
+                    </div>
+                </CardContent>
+            </Card>
+
             <div className="grid gap-6 md:grid-cols-2">
                 <Card className="border-border shadow-none rounded-sm">
                     <CardHeader>
@@ -414,12 +432,12 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="flex-1 space-y-2">
                                             <div className="flex items-center gap-2">
-                                                <span className="font-mono text-xs text-muted-foreground">
-                                                    {comment.author.substring(0, 6)}...{comment.author.substring(38)}
-                                                </span>
-                                                {comment.author.toLowerCase() === proposal?.proposer.toLowerCase() && (
-                                                    <Badge variant="secondary" className="text-[10px]">Author</Badge>
-                                                )}
+                                                <ProfileCard
+                                                    address={comment.author}
+                                                    size="sm"
+                                                    showBadge={comment.author.toLowerCase() === proposal?.proposer.toLowerCase()}
+                                                    badgeText="Author"
+                                                />
                                                 <span className="text-xs text-muted-foreground">
                                                     {new Date(comment.timestamp).toLocaleString()}
                                                 </span>

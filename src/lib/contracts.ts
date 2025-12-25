@@ -9,6 +9,7 @@ export const CONTRACTS = {
     polinePurchase: '0xeb409d3f0e692b6925665af906706f42475c4142',
     treasuryManager: '0x24f29fe3765ba33ec46984e73c537c2bb4ff83a7',
     storageRegistry: '0x9DFd21872D1aaaAc289527f17048072deE1C1e82',
+    userProfile: '0xa5e4709bb929836c2ced40203baf538fee913636',
 } as const
 
 // PolineToken ABI (soulbound governance token)
@@ -637,6 +638,114 @@ export const polinePurchaseABI = [
         inputs: [],
         name: 'totalSold',
         outputs: [{ name: '', type: 'uint256' }],
+        stateMutability: 'view',
+        type: 'function',
+    },
+] as const
+
+// UserProfile ABI
+export const userProfileABI = [
+    {
+        inputs: [{ name: '_user', type: 'address' }],
+        name: 'getProfile',
+        outputs: [
+            {
+                name: '',
+                type: 'tuple',
+                components: [
+                    { name: 'avatarURI', type: 'string' },
+                    { name: 'displayName', type: 'string' },
+                    { name: 'bio', type: 'string' },
+                    { name: 'socialLinks', type: 'string' },
+                    { name: 'preferences', type: 'string' },
+                    { name: 'avatarType', type: 'uint8' },
+                    { name: 'isDelegate', type: 'bool' },
+                    { name: 'delegateStatement', type: 'string' },
+                    { name: 'updatedAt', type: 'uint256' },
+                ],
+            },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+    },
+    {
+        inputs: [{ name: '_users', type: 'address[]' }],
+        name: 'getProfiles',
+        outputs: [
+            {
+                name: '',
+                type: 'tuple[]',
+                components: [
+                    { name: 'avatarURI', type: 'string' },
+                    { name: 'displayName', type: 'string' },
+                    { name: 'bio', type: 'string' },
+                    { name: 'socialLinks', type: 'string' },
+                    { name: 'preferences', type: 'string' },
+                    { name: 'avatarType', type: 'uint8' },
+                    { name: 'isDelegate', type: 'bool' },
+                    { name: 'delegateStatement', type: 'string' },
+                    { name: 'updatedAt', type: 'uint256' },
+                ],
+            },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+    },
+    {
+        inputs: [
+            { name: '_uri', type: 'string' },
+            { name: '_avatarType', type: 'uint8' },
+        ],
+        name: 'setAvatar',
+        outputs: [],
+        stateMutability: 'nonpayable',
+        type: 'function',
+    },
+    {
+        inputs: [
+            { name: '_displayName', type: 'string' },
+            { name: '_bio', type: 'string' },
+        ],
+        name: 'setNameAndBio',
+        outputs: [],
+        stateMutability: 'nonpayable',
+        type: 'function',
+    },
+    {
+        inputs: [
+            { name: '_isDelegate', type: 'bool' },
+            { name: '_statement', type: 'string' },
+        ],
+        name: 'setDelegateInfo',
+        outputs: [],
+        stateMutability: 'nonpayable',
+        type: 'function',
+    },
+    {
+        inputs: [{ name: '_preferences', type: 'string' }],
+        name: 'setPreferences',
+        outputs: [],
+        stateMutability: 'nonpayable',
+        type: 'function',
+    },
+    {
+        inputs: [{ name: '_socialLinks', type: 'string' }],
+        name: 'setSocialLinks',
+        outputs: [],
+        stateMutability: 'nonpayable',
+        type: 'function',
+    },
+    {
+        inputs: [{ name: '_name', type: 'string' }],
+        name: 'getAddressByName',
+        outputs: [{ name: '', type: 'address' }],
+        stateMutability: 'view',
+        type: 'function',
+    },
+    {
+        inputs: [{ name: '_name', type: 'string' }],
+        name: 'isNameAvailable',
+        outputs: [{ name: '', type: 'bool' }],
         stateMutability: 'view',
         type: 'function',
     },
